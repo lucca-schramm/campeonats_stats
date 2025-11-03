@@ -1,236 +1,175 @@
-# Campeonatos Stats - Sistema de Coleta de Dados de Futebol
+# Campeonatos Stats - Sistema Completo
 
-Sistema para coleta, armazenamento e exportação de dados de futebol utilizando a API FootyStats.
+Sistema completo para coleta, armazenamento e visualização de dados de futebol com API REST, frontend Vue.js e chatbot interativo.
 
-## 🎯 Objetivo
-
-Coletar dados de ligas, times, partidas e estatísticas das ligas disponíveis no FootyStats, armazenar em banco de dados SQLite e exportar no formato JSON especificado.
-
-## 🔧 Configuração
-
-### 1. Variáveis de Ambiente
-
-Crie um arquivo `.env` na raiz do projeto com:
-
-```env
-FOOTYSTATS_API_KEY=sua_chave_api_aqui
-```
-
-### 2. Instalação de Dependências
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Estrutura do Banco de Dados
-
-O sistema cria automaticamente as seguintes tabelas:
-
-#### `leagues` - Ligas
-- `id` (INTEGER PRIMARY KEY) - ID único da liga
-- `name` (TEXT) - Nome da liga
-- `country` (TEXT) - País da liga
-- `image` (TEXT) - URL da imagem da liga
-- `season_id` (INTEGER) - ID da temporada
-- `season_year` (INTEGER) - Ano da temporada
-
-#### `teams` - Times
-- `id` (INTEGER PRIMARY KEY) - ID único do time
-- `name` (TEXT) - Nome do time
-- `logo` (TEXT) - URL do logo do time
-- `league_id` (INTEGER) - ID da liga
-- `season_id` (INTEGER) - ID da temporada
-
-#### `fixtures` - Partidas
-- `id` (INTEGER PRIMARY KEY) - ID único da partida
-- `league_id` (INTEGER) - ID da liga
-- `season_id` (INTEGER) - ID da temporada
-- `home_team_id` (INTEGER) - ID do time mandante
-- `away_team_id` (INTEGER) - ID do time visitante
-- `home_team_name` (TEXT) - Nome do time mandante
-- `away_team_name` (TEXT) - Nome do time visitante
-- `referee` (TEXT) - Árbitro
-- `venue_id` (INTEGER) - ID do estádio
-- `venue_name` (TEXT) - Nome do estádio
-- `venue_city` (TEXT) - Cidade do estádio
-- `date` (TEXT) - Data da partida
-- `timestamp` (INTEGER) - Timestamp Unix
-- `status` (TEXT) - Status da partida
-- `home_goals` (INTEGER) - Gols do time mandante
-- `away_goals` (INTEGER) - Gols do time visitante
-- `home_halftime_goals` (INTEGER) - Gols do mandante no 1º tempo
-- `away_halftime_goals` (INTEGER) - Gols do visitante no 1º tempo
-- `home_score` (INTEGER) - Placar final do mandante
-- `away_score` (INTEGER) - Placar final do visitante
-- `home_halftime_score` (INTEGER) - Placar do 1º tempo do mandante
-- `away_halftime_score` (INTEGER) - Placar do 1º tempo do visitante
-
-#### `team_statistics` - Estatísticas dos Times
-- `id` (INTEGER PRIMARY KEY) - ID único
-- `team_id` (INTEGER) - ID do time
-- `league_id` (INTEGER) - ID da liga
-- `season_id` (INTEGER) - ID da temporada
-- `season_year` (INTEGER) - Ano da temporada
-- `matches_played` (INTEGER) - Partidas jogadas
-- `wins` (INTEGER) - Vitórias
-- `draws` (INTEGER) - Empates
-- `losses` (INTEGER) - Derrotas
-- `goals_for` (INTEGER) - Gols marcados
-- `goals_against` (INTEGER) - Gols sofridos
-- `points` (INTEGER) - Pontos
-- `rank` (INTEGER) - Posição na tabela
-- `position` (INTEGER) - Posição na tabela
-
-## 🚀 Como Usar
-
-### Execução Principal
-
-```bash
-python main.py
-```
-
-### Teste da API
-
-```bash
-python test_api.py
-```
-
-## 📊 Funcionamento
-
-### 1. Coleta de Ligas
-- Obtém ligas escolhidas da API FootyStats usando `chosen_leagues_only=true`
-- Identifica automaticamente a temporada mais recente disponível
-- Gera IDs únicos para cada liga baseado em hash do nome, país e ano
-
-### 2. Coleta de Dados por Liga
-- **Times**: Obtém todos os times da temporada
-- **Partidas**: Coleta todas as partidas da temporada
-- **Tabela de Classificação**: Constrói automaticamente a partir dos dados de partidas coletados
-
-### 3. Mapeamento de Dados da API
-
-#### Liga (league-list)
-```json
-{
-  "name": "Germany Bundesliga",
-  "image": "https://cdn.footystats.org/img/competitions/germany-bundesliga.png",
-  "country": "Germany",
-  "season": [
-    {
-      "id": 14968,
-      "year": 20252026,
-      "country": "Germany"
-    }
-  ]
-}
-```
-
-#### Time (league-teams)
-```json
-{
-  "id": 33,
-  "name": "BVB 09 Borussia Dortmund",
-  "image": "https://cdn.footystats.org/img/teams/germany-bvb-09-borussia-dortmund.png"
-}
-```
-
-#### Partida (league-matches)
-```json
-{
-  "id": 8227534,
-  "homeID": 46,
-  "awayID": 552,
-  "home_name": "RB Leipzig",
-  "away_name": "Heidenheim",
-  "status": "complete",
-  "homeGoalCount": 2,
-  "awayGoalCount": 0,
-  "ht_goals_team_a": 0,
-  "ht_goals_team_b": 0,
-  "date_unix": 1756560600,
-  "stadium_name": "Red Bull Arena",
-  "stadium_location": "Leipzig"
-}
-```
-
-## 🔄 Processo de Coleta
-
-1. **Inicialização**: Cria banco de dados e tabelas
-2. **Carregamento de Ligas**: Obtém ligas escolhidas da API
-3. **Processamento por Liga**:
-   - Salva dados da liga
-   - Coleta e salva times
-   - Constrói tabela de classificação
-   - Coleta e salva partidas
-4. **Exportação**: Gera arquivos JSON no formato especificado
-
-## 📁 Estrutura de Arquivos
+## 🏗️ Estrutura do Projeto (Monorepo)
 
 ```
 campeonatos_stats/
-├── main.py                 # Script principal
-├── test_api.py            # Teste da API
-├── queries.py             # Consultas SQL
-├── setup.py               # Configuração do projeto
-├── requirements.txt       # Dependências
-├── .env                   # Variáveis de ambiente
-├── football_stats.db      # Banco de dados SQLite
-├── example.json           # Exemplo de formato de saída
-└── README.md              # Este arquivo
+├── app/                    # Backend FastAPI
+│   ├── api/v1/endpoints/  # Endpoints REST
+│   ├── core/              # Configurações core
+│   ├── models/            # Modelos SQLAlchemy
+│   ├── services/          # Lógica de negócio
+│   ├── repositories/       # Camada de acesso a dados
+│   ├── chatbot/           # Serviço de chatbot
+│   └── webhooks/          # Sistema de webhooks
+├── frontend/              # Frontend Vue.js + Tailwind
+│   ├── src/
+│   │   ├── views/        # Páginas
+│   │   ├── components/   # Componentes Vue
+│   │   └── router/       # Rotas
+│   └── package.json
+├── tests/                 # Testes automatizados
+└── docker-compose.yml     # Orquestração de serviços
 ```
 
-## 🎯 Características Principais
+## 🚀 Início Rápido
 
-- ✅ **Coleta Automática**: Identifica temporadas mais recentes automaticamente
-- ✅ **Dados Completos**: Coleta times, partidas e constrói estatísticas
-- ✅ **Mapeamento Correto**: Campos da API FootyStats mapeados corretamente
-- ✅ **Tabela de Classificação**: Construída automaticamente a partir dos dados
-- ✅ **Tratamento de Erros**: Logs detalhados e tratamento de exceções
-- ✅ **Exportação JSON**: Formato compatível com especificação
+### Pré-requisitos
 
-## 🔧 Configurações da API
+- **Docker Desktop** instalado e rodando
+- Docker Compose (incluído no Docker Desktop)
 
-### Endpoints Utilizados
-- `league-list` - Lista de ligas escolhidas
-- `league-teams` - Times de uma temporada
-- `league-matches` - Partidas de uma temporada
+### Executar Tudo com Docker
 
-### Parâmetros
-- `chosen_leagues_only=true` - Apenas ligas escolhidas
-- `season={season_id}` - ID da temporada
-- `league_id={season_id}` - ID da liga (mesmo que season_id)
+```bash
+# 1. Iniciar todos os serviços
+docker-compose up -d
 
-## 📝 Logs
-
-O sistema gera logs detalhados com:
-- Progresso da coleta
-- Número de registros processados
-- Erros e avisos
-- Estatísticas de execução
-
-## 🚨 Observações Importantes
-
-1. **Temporadas**: O sistema sempre busca a temporada mais recente disponível
-2. **IDs Únicos**: Liga IDs são gerados usando hash para evitar conflitos
-3. **Dados Completos**: Todos os campos disponíveis na API são mapeados
-4. **Performance**: Inclui delays para não sobrecarregar a API
-5. **Robustez**: Tratamento de erros e validação de dados
-
-## 📊 Exemplo de Saída
-
-O sistema gera arquivos JSON no formato:
-
-```json
-{
-  "league": {
-    "name": "Germany Bundesliga",
-    "country": "Germany",
-    "season": "20252026"
-  },
-  "teams": [...],
-  "fixtures": [...],
-  "standings": [...]
-}
+# 2. Verificar logs
+docker-compose logs -f
 ```
 
+### Acessar Aplicação
 
+Após os containers iniciarem:
+
+- **Frontend**: http://localhost:3000
+- **API Backend**: http://localhost:8000
+- **Documentação API**: http://localhost:8000/docs
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
+
+### Comandos Úteis
+
+```bash
+# Parar todos os serviços
+docker-compose down
+
+# Parar e remover volumes (limpar dados)
+docker-compose down -v
+
+# Rebuild dos containers
+docker-compose build --no-cache
+
+# Ver logs de um serviço específico
+docker-compose logs -f api
+docker-compose logs -f frontend
+```
+
+## 📋 Funcionalidades
+
+### Backend (FastAPI)
+
+- ✅ **API REST** completa com endpoints organizados
+- ✅ **Redis Cache** com TTL de 2 minutos
+- ✅ **Validação de Integridade** de dados
+- ✅ **Rate Limiting** configurável
+- ✅ **Webhooks** para notificações
+- ✅ **Chatbot** interativo
+- ✅ **Connection Pooling** otimizado
+
+### Frontend (Vue.js)
+
+- ✅ **Visualização Brasileirão** com estatísticas
+- ✅ **Tabela de Classificação** interativa
+- ✅ **Top Artilheiros** com ranking
+- ✅ **Chatbot** integrado
+- ✅ **Design Responsivo** com Tailwind CSS
+- ✅ **Navegação** com Vue Router
+
+## ⚙️ Configurações
+
+### Redis Cache
+
+Cache configurado para **2 minutos (120 segundos)** em todos os endpoints:
+
+- `/api/v1/leagues/*` - 120s
+- `/api/v1/chatbot/*` - 120s
+- `/api/v1/webhooks/*` - 120s
+
+### Integridade de Dados
+
+Sistema de validação implementado em `app/core/data_integrity.py`:
+
+- Validação de ligas
+- Validação de estatísticas de times
+- Validação de jogadores
+- Validação de partidas
+- Verificação de consistência
+
+Endpoint: `GET /api/v1/data-integrity/check`
+
+### Rate Limiting
+
+- Global: 1000/hora, 100/minuto por IP
+- Standings: 200/minuto
+- Chatbot: 100/minuto
+
+## 🧪 Testes
+
+```bash
+python run_tests.py
+# ou
+pytest tests/
+```
+
+## 📦 Estrutura de Dados
+
+### Modelos Principais
+
+- **League**: Ligas e campeonatos
+- **Team**: Times
+- **Fixture**: Partidas
+- **Player**: Jogadores e artilheiros
+- **TeamStatistics**: Estatísticas de times
+
+## 🔐 Variáveis de Ambiente
+
+Crie um arquivo `.env`:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/campeonatos_stats
+REDIS_HOST=localhost
+REDIS_PORT=6379
+CACHE_TTL=120
+FOOTYSTATS_API_KEY=sua_chave_aqui
+OPENAI_API_KEY=sua_chave_openai
+DEBUG=True
+```
+
+## 📚 Documentação da API
+
+Acesse `/docs` para documentação interativa gerada automaticamente pelo FastAPI.
+
+## 🐳 Docker
+
+O projeto está **100% containerizado** e roda completamente no Docker Desktop.
+
+### Serviços Disponíveis
+
+- **frontend**: Porta 3000 (Nginx servindo Vue.js)
+- **api**: Porta 8000 (FastAPI)
+- **postgres**: Porta 5432 (PostgreSQL)
+- **redis**: Porta 6379 (Redis Cache)
+- **celery-worker**: Processamento assíncrono
+- **celery-beat**: Agendamento de tarefas
+
+### Estrutura Docker
+
+Todos os serviços estão conectados na mesma rede Docker (`app-network`) e podem se comunicar internamente.
+
+## 📝 Licença
+
+Este projeto é privado e proprietário.

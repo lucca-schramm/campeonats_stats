@@ -1,23 +1,4 @@
-# Arquivos de ambiente
-.env
-.env.local
-.env.*.local
-
-# Banco de dados
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-logs/
-*.log
-
-# Dados exportados
-exports/
-data/
-*.json
-
-# Cache Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -38,14 +19,11 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual environments
+# Virtual Environment
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
 
 # IDEs
 .vscode/
@@ -54,15 +32,23 @@ venv.bak/
 *.swo
 *~
 
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Docker
+.dockerignore
+
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Arquivos temporários
-*.tmp
-*.temp
