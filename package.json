@@ -1,0 +1,87 @@
+{
+  "name": "campeonatos-stats",
+  "version": "1.0.0",
+  "description": "Campeonatos Stats - API e Frontend para estatísticas de futebol",
+  "private": true,
+  "scripts": {
+    "deploy:frontend": "docker-compose stop frontend && docker-compose build --no-cache frontend && docker-compose up -d frontend",
+    "deploy:api": "docker-compose stop api && docker-compose build --no-cache api && docker-compose up -d api",
+    "deploy:chat": "docker-compose stop api && docker-compose build --no-cache api && docker-compose up -d api",
+    "deploy:chatbot": "docker-compose stop api && docker-compose build --no-cache api && docker-compose up -d api",
+    "deploy:all": "docker-compose down && docker-compose build --no-cache && docker-compose up -d",
+    "deploy:prod": "docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml build --no-cache && docker-compose -f docker-compose.prod.yml up -d",
+    "deploy:dev": "docker-compose -f docker-compose.dev.yml down && docker-compose -f docker-compose.dev.yml build --no-cache && docker-compose -f docker-compose.dev.yml up -d",
+    
+    "restart:frontend": "docker-compose stop frontend && docker-compose build frontend && docker-compose up -d frontend",
+    "restart:api": "docker-compose stop api && docker-compose build api && docker-compose up -d api",
+    "restart:chat": "docker-compose stop api && docker-compose build api && docker-compose up -d api",
+    "restart:chatbot": "docker-compose stop api && docker-compose build api && docker-compose up -d api",
+    "restart:all": "docker-compose down && docker-compose build && docker-compose up -d",
+    "restart:services": "docker-compose stop api celery-worker celery-beat && docker-compose build api celery-worker celery-beat && docker-compose up -d api celery-worker celery-beat",
+    "restart:db": "docker-compose restart postgres redis",
+    
+    "stop:frontend": "docker-compose stop frontend",
+    "stop:api": "docker-compose stop api",
+    "stop:chat": "docker-compose stop api",
+    "stop:chatbot": "docker-compose stop api",
+    "stop:all": "docker-compose down",
+    
+    "start:frontend": "docker-compose up -d frontend",
+    "start:api": "docker-compose up -d api",
+    "start:chat": "docker-compose up -d api",
+    "start:chatbot": "docker-compose up -d api",
+    "start:all": "docker-compose up -d",
+    
+    "logs:frontend": "docker-compose logs -f frontend",
+    "logs:api": "docker-compose logs -f api",
+    "logs:chat": "docker-compose logs -f api",
+    "logs:chatbot": "docker-compose logs -f api",
+    "logs:all": "docker-compose logs -f",
+    "logs:db": "docker-compose logs -f postgres redis",
+    "logs:celery": "docker-compose logs -f celery-worker celery-beat",
+    
+    "build:frontend": "docker-compose build frontend",
+    "build:api": "docker-compose build api",
+    "build:chat": "docker-compose build api",
+    "build:chatbot": "docker-compose build api",
+    "build:all": "docker-compose build",
+    
+    "status": "docker-compose ps",
+    "health": "docker-compose ps && echo '' && docker-compose exec -T api python -c \"import sys; sys.path.insert(0, '/app'); from app.core.database import check_db_connection; check_db_connection()\" 2>&1 || echo 'Health check: API não respondeu'",
+    "health:api": "docker-compose exec -T api python -c \"import sys; sys.path.insert(0, '/app'); from app.core.database import check_db_connection; check_db_connection()\" 2>&1 || echo 'Health check failed'",
+    "health:db": "docker-compose exec -T postgres pg_isready -U postgres",
+    
+    "clean": "docker-compose down -v",
+    "clean:all": "docker-compose down -v && docker system prune -f",
+    "clean:images": "docker-compose down && docker images -q campeonatos_stats* | ForEach-Object { if ($_) { docker rmi $_ } }",
+    
+    "shell:api": "docker-compose exec api /bin/bash",
+    "shell:frontend": "docker-compose exec frontend /bin/sh",
+    "shell:db": "docker-compose exec postgres psql -U postgres -d campeonatos_stats",
+    
+    "test:api": "docker-compose exec api pytest tests/ -v",
+    "test:frontend": "cd frontend && npm run lint",
+    
+    "db:backup": "docker-compose exec -T postgres pg_dump -U postgres campeonatos_stats > backup_$(Get-Date -Format 'yyyyMMdd_HHmmss').sql && echo Backup criado",
+    "db:restore": "echo Use: docker-compose exec -T postgres psql -U postgres -d campeonatos_stats < backup.sql",
+    "db:stats": "docker-compose exec -T postgres psql -U postgres -d campeonatos_stats -c \"SELECT 'Leagues' as table_name, COUNT(*) as count FROM leagues UNION ALL SELECT 'Teams', COUNT(*) FROM teams UNION ALL SELECT 'Fixtures', COUNT(*) FROM fixtures UNION ALL SELECT 'Players', COUNT(*) FROM players UNION ALL SELECT 'Team Statistics', COUNT(*) FROM team_statistics;\"",
+    
+    "init": "docker-compose up -d postgres redis rabbitmq && timeout /t 5 && docker-compose up -d",
+    "setup": "npm run init",
+    
+    "quick:frontend": "docker-compose build frontend && docker-compose up -d frontend",
+    "quick:api": "docker-compose build api && docker-compose up -d api",
+    "quick:chat": "docker-compose build api && docker-compose up -d api"
+  },
+  "keywords": [
+    "football",
+    "soccer",
+    "statistics",
+    "api",
+    "vue",
+    "fastapi"
+  ],
+  "author": "",
+  "license": "ISC"
+}
+

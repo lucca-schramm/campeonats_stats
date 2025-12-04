@@ -95,14 +95,17 @@ const fetchStandings = async () => {
   error.value = null
   
   try {
+    console.log(`Buscando standings para liga ${props.leagueId}`)
     const response = await axios.get(`/api/v1/leagues/${props.leagueId}/standings`)
+    console.log('Response recebido:', response.data)
     const data = response.data.standings || []
+    console.log(`Dados processados: ${data.length} times`)
     
-    standings.value = data.map(team => ({
+    standings.value = data.map((team, index) => ({
       team_id: team.team_id,
-      name: `Time ${team.team_id}`,
-      logo: '',
-      rank: team.rank,
+      name: team.name || `Time ${team.team_id}`,
+      logo: team.logo || '',
+      rank: team.rank || (index + 1),
       points: team.points || 0,
       matches_played: team.matches_played || 0,
       wins: team.wins || 0,
@@ -113,8 +116,10 @@ const fetchStandings = async () => {
       goals_diff: team.goals_diff || 0
     }))
   } catch (err) {
-    error.value = 'Erro ao carregar tabela'
-    console.error(err)
+    error.value = `Erro ao carregar tabela: ${err.message || 'Erro desconhecido'}`
+    console.error('Erro ao buscar standings:', err)
+    console.error('Response:', err.response?.data)
+    console.error('Status:', err.response?.status)
   } finally {
     loading.value = false
   }

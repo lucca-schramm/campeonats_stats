@@ -111,9 +111,9 @@
           </div>
         </div>
 
-        <BrasileiraoStats v-if="activeTab === 'estatisticas'" :leagueId="1" :filter="statsFilter" />
-        <BrasileiraoTable v-if="activeTab === 'tabela'" :leagueId="1" />
-        <BrasileiraoTopScorers v-if="activeTab === 'artilheiros'" :leagueId="1" />
+        <BrasileiraoStats v-if="activeTab === 'estatisticas'" :leagueId="564922" :filter="statsFilter" />
+        <BrasileiraoTable v-if="activeTab === 'tabela'" :leagueId="564922" />
+        <BrasileiraoTopScorers v-if="activeTab === 'artilheiros'" :leagueId="564922" />
       </div>
     </div>
 

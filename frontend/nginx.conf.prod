@@ -1,0 +1,66 @@
+# Nginx config para PRODUÇÃO
+# Resolver DNS para Docker
+resolver 127.0.0.11 valid=30s;
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Segurança em produção
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Desabilita redirect automático
+    absolute_redirect off;
+    port_in_redirect off;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        
+        # Cache estático
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    location ~ ^/api(/.*)?$ {
+        # Adiciona barra antes do query string se necessário para evitar redirects do FastAPI
+        set $backend_uri $request_uri;
+        # Se a URL não termina com barra e não tem query string, adiciona barra
+        if ($request_uri ~ ^(/api/v[0-9]+/[^/?]+)(\?.*)?$) {
+            set $backend_uri $1/$is_args$args;
+        }
+        # Se tem query string, adiciona barra antes
+        if ($request_uri ~ ^(/api/v[0-9]+/[^?]+)\?.*$) {
+            set $backend_uri $1/$is_args$args;
+        }
+        
+        proxy_pass http://api:8000$backend_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_redirect off;
+        proxy_buffering off;
+
+        # Timeouts em produção
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+

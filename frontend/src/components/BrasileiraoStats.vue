@@ -123,27 +123,32 @@ const fetchStats = async () => {
   error.value = null
   
   try {
+    console.log(`Buscando stats para liga ${props.leagueId}, filtro: ${props.filter}`)
     const response = await axios.get(`/api/v1/leagues/${props.leagueId}/standings`)
+    console.log('Response recebido:', response.data)
     const standings = response.data.standings || []
+    console.log(`Dados processados: ${standings.length} times`)
     
     stats.value = standings.map((team, idx) => ({
       team_id: team.team_id,
-      name: getTeamName(team.team_id),
-      logo: '',
-      rank: team.rank,
+      name: team.name || getTeamName(team.team_id),
+      logo: team.logo || '',
+      rank: team.rank || (idx + 1),
       matches_played: team.matches_played || 0,
       aproveitamento: calculateAproveitamento(team),
-      over25Goals: 0,
-      btts: 0,
-      cleanSheets: 0,
-      over05HT: 0,
-      over05FT: 0,
-      avgCorners: 0,
-      form: '-----'.split('')
+      over25Goals: team.over25Goals || 0,
+      btts: team.btts || 0,
+      cleanSheets: team.cleanSheets || 0,
+      over05HT: team.over05HT || 0,
+      over05FT: team.over05FT || 0,
+      avgCorners: team.avgCorners || 0,
+      form: team.form || '-----'.split('')
     }))
   } catch (err) {
-    error.value = 'Erro ao carregar estatísticas'
-    console.error(err)
+    error.value = `Erro ao carregar estatísticas: ${err.message || 'Erro desconhecido'}`
+    console.error('Erro ao buscar stats:', err)
+    console.error('Response:', err.response?.data)
+    console.error('Status:', err.response?.status)
   } finally {
     loading.value = false
   }

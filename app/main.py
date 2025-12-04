@@ -7,7 +7,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.logging_config import setup_logging
-from app.core.middleware import PerformanceMiddleware, SecurityHeadersMiddleware
+from app.core.middleware import OptimizedMiddleware
 from app.api.v1.api import api_router
 import logging
 
@@ -34,25 +34,16 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Middlewares (ordem importa!)
-# 1. Performance (primeiro para medir tudo)
-app.add_middleware(PerformanceMiddleware)
-
-# 2. Segurança
-app.add_middleware(SecurityHeadersMiddleware)
-
-# 3. Compressão GZip (reduz tamanho de respostas em ~70%)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-# 4. CORS (último)
+# Middlewares
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    max_age=3600,  # Cache CORS por 1 hora
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(OptimizedMiddleware)
 
 # Inclui routers
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
@@ -86,13 +77,34 @@ async def health_check():
 async def startup_event():
     """Evento de startup"""
     logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} iniciando...")
-    logger.info(f"Debug mode: {settings.DEBUG}")
+    
+    # Verifica se banco está vazio
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.league import League
+        from sqlalchemy import select, func
+        
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(func.count(League.id)))
+            leagues_count = result.scalar() or 0
+            if leagues_count == 0:
+                logger.warning("⚠️  BANCO VAZIO DETECTADO!")
+                logger.info("💡 Use POST /api/v1/collect/initial para coletar dados")
+                logger.info("💡 Ou aguarde a task agendada (a cada 10 minutos)")
+            else:
+                logger.info(f"✅ Banco OK: {leagues_count} ligas encontradas")
+    except Exception as e:
+        logger.warning(f"Erro ao verificar banco: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Evento de shutdown"""
     logger.info("Aplicação encerrando...")
+    from app.core.cache import cache
+    await cache.close()
+    from app.core.database import close_db
+    await close_db()
 
 
 if __name__ == "__main__":

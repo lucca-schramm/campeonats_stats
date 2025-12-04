@@ -158,9 +158,10 @@ class ChatbotService:
         return "Desculpe, não entendi. Digite 'ajuda' para ver os comandos disponíveis."
     
     def _process_with_llm(self, message: str) -> str:
-        """Processa mensagem com LLM (implementar quando necessário)"""
-        # Placeholder para implementação com LangChain/OpenAI
-        return "Funcionalidade LLM ainda não implementada. Use chatbot_type='simple'"
+        """Processa mensagem com RAG (Retrieval-Augmented Generation)"""
+        # RAG será processado de forma async no endpoint
+        # Este método é apenas placeholder - o endpoint chama diretamente o RAG service
+        return "Processando com RAG..."
     
     def _extract_league_id(self, message: str) -> Optional[int]:
         """Extrai ID de liga da mensagem"""

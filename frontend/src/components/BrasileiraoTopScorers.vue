@@ -84,8 +84,11 @@ const fetchScorers = async () => {
   error.value = null
   
   try {
+    console.log(`Buscando artilheiros para liga ${props.leagueId}`)
     const response = await axios.get(`/api/v1/leagues/${props.leagueId}/top-scorers?limit=50`)
+    console.log('Response recebido:', response.data)
     const data = response.data.top_scorers || []
+    console.log(`Dados processados: ${data.length} artilheiros`)
     
     let lastGols = -1
     let posCounter = 0
@@ -108,8 +111,10 @@ const fetchScorers = async () => {
         }
       })
   } catch (err) {
-    error.value = 'Erro ao carregar artilheiros'
-    console.error(err)
+    error.value = `Erro ao carregar artilheiros: ${err.message || 'Erro desconhecido'}`
+    console.error('Erro ao buscar scorers:', err)
+    console.error('Response:', err.response?.data)
+    console.error('Status:', err.response?.status)
   } finally {
     loading.value = false
   }

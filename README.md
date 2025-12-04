@@ -120,9 +120,11 @@ Endpoint: `GET /api/v1/data-integrity/check`
 ## 🧪 Testes
 
 ```bash
-python run_tests.py
-# ou
-pytest tests/
+# Executar todos os testes
+pytest tests/ -v
+
+# Executar com cobertura
+pytest tests/ --cov=app --cov-report=html
 ```
 
 ## 📦 Estrutura de Dados

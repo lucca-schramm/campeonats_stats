@@ -5,9 +5,13 @@ from app.core.config import settings
 
 celery_app = Celery(
     'campeonatos_stats',
-    broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND
+    broker=settings.celery_broker_url,
+    backend=settings.celery_result_backend
 )
+
+# Importa todas as tasks para registro automático
+# Isso garante que todas as tasks sejam registradas no worker
+from app.tasks import scheduler, data_collection, live_monitor  # noqa
 
 celery_app.conf.update(
     task_serializer='json',
@@ -23,11 +27,22 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
 )
 
-# Configura agendamento a cada 15 minutos (registrado diretamente aqui para evitar circular import)
+# Agendamento otimizado
 celery_app.conf.beat_schedule = {
-    'collect-data-every-15min': {
-        'task': 'app.tasks.scheduler.scheduled_collection',
-        'schedule': crontab(minute='*/15'),
+    # Verificação de banco vazio - a cada 5 minutos (mais frequente para detectar banco vazio rapidamente)
+    'check-empty-database': {
+        'task': 'app.tasks.scheduler.check_and_collect_if_empty',
+        'schedule': crontab(minute='*/5'),
+    },
+    # Atualização de partidas ao vivo - a cada 2 minutos (apenas se houver ligas no banco)
+    'update-live-matches': {
+        'task': 'app.tasks.live_monitor.update_live_matches_task',
+        'schedule': crontab(minute='*/2'),
+    },
+    # Coleta periódica - a cada 6 horas (otimizado para não sobrecarregar API)
+    'periodic-collection': {
+        'task': 'app.tasks.scheduler.periodic_full_collection',
+        'schedule': crontab(minute=0, hour='*/6'),
     },
 }
 

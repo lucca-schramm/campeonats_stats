@@ -44,9 +44,29 @@
         </button>
       </div>
 
-      <!-- Leagues Grid -->
-      <div v-else-if="filteredLeagues.length === 0" class="text-center py-20">
-        <div class="text-white/50 text-lg">Nenhuma liga encontrada</div>
+      <!-- Empty State -->
+      <div v-else-if="filteredLeagues.length === 0 && !loading" class="text-center py-20">
+        <div class="max-w-md mx-auto">
+          <div class="text-white/50 text-xl mb-4">Nenhuma liga encontrada</div>
+          <div v-if="leagues.length === 0" class="text-white/70 mb-6">
+            <div class="flex items-center justify-center space-x-2 text-white/40 mb-4">
+              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-white/40"></div>
+              <span class="text-lg">Carregando ligas...</span>
+            </div>
+            <p class="text-sm text-white/50">
+              Aguarde um momento enquanto carregamos as informações.
+            </p>
+          </div>
+          <div v-else class="text-white/70">
+            <p>Nenhuma liga corresponde aos filtros aplicados.</p>
+            <button
+              @click="clearFilters"
+              class="mt-4 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Limpar Filtros
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -148,11 +168,21 @@ const fetchLeagues = async () => {
   error.value = null
 
   try {
-    const response = await axios.get('/api/v1/leagues?limit=1000')
-    leagues.value = response.data || []
+    console.log('Buscando lista de ligas...')
+    const response = await axios.get('/api/v1/leagues/?limit=1000')
+    console.log('Response completo:', response)
+    console.log('Response data:', response.data)
+    leagues.value = Array.isArray(response.data) ? response.data : []
+    console.log('Ligas carregadas:', leagues.value.length)
+    if (leagues.value.length > 0) {
+      console.log('Primeira liga:', leagues.value[0])
+    }
   } catch (err) {
-    error.value = 'Erro ao carregar ligas'
-    console.error(err)
+    error.value = `Não foi possível carregar as ligas: ${err.message || 'Erro desconhecido'}`
+    console.error('Erro ao buscar ligas:', err)
+    console.error('Response:', err.response?.data)
+    console.error('Status:', err.response?.status)
+    console.error('URL:', err.config?.url)
   } finally {
     loading.value = false
   }
@@ -162,8 +192,26 @@ const goToLeague = (leagueId) => {
   router.push({ name: 'league', params: { leagueId } })
 }
 
+const clearFilters = () => {
+  searchQuery.value = ''
+  selectedCountry.value = ''
+}
+
 onMounted(() => {
   fetchLeagues()
+  
+  // Atualiza automaticamente se não houver ligas
+  const checkInterval = setInterval(() => {
+    if (leagues.value.length === 0 && !loading.value) {
+      fetchLeagues()
+    } else if (leagues.value.length > 0) {
+      clearInterval(checkInterval)
+    }
+  }, 10000)
+  
+  setTimeout(() => {
+    clearInterval(checkInterval)
+  }, 300000)
 })
 </script>
 

@@ -1,6 +1,6 @@
 """Endpoints de Chatbot"""
 from fastapi import APIRouter, HTTPException, Body, Request, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import uuid
 from datetime import datetime
@@ -15,6 +15,9 @@ from app.schemas.chatbot import (
 )
 from app.chatbot.service import ChatbotService
 from app.core.cache import cache
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -24,11 +27,11 @@ chat_sessions = {}
 
 @router.post("/chat", response_model=ChatResponse)
 @limiter.limit("100/minute")  # Rate limit para chatbot
-async def chat_with_bot(request: Request, message: ChatMessage):
+async def chat_with_bot(request: Request, message: ChatMessage, db: AsyncSession = Depends(get_db)):
     """
-    Endpoint principal para chat com bot.
+    Endpoint principal para chat com bot usando RAG.
     
-    O frontend envia mensagens aqui e recebe respostas.
+    O frontend envia mensagens aqui e recebe respostas baseadas em dados do banco.
     Mantém sessão para contexto conversacional.
     """
     try:
@@ -43,12 +46,27 @@ async def chat_with_bot(request: Request, message: ChatMessage):
         
         chat_sessions[session_id]["message_count"] += 1
         
+        # Determina tipo de chatbot
+        chatbot_type = message.chatbot_type or "rag"
+        if chatbot_type not in ["simple", "rag", "llm"]:
+            chatbot_type = "rag"  # Default para RAG
+        
         # Processa mensagem
-        chatbot_service = ChatbotService()
-        response_text = chatbot_service.process_message(
-            message.message,
-            chatbot_type=message.chatbot_type or "simple"
-        )
+        if chatbot_type == "rag" or chatbot_type == "llm":
+            # Usa RAG Service (async) com histórico conversacional
+            try:
+                from app.chatbot.rag_service import RAGService
+                rag_service = RAGService()
+                response_text = await rag_service.process_query(message.message, db, session_id=session_id)
+            except Exception as e:
+                logger.error(f"Erro no RAG, usando fallback: {e}", exc_info=True)
+                # Fallback para simple
+                chatbot_service = ChatbotService()
+                response_text = chatbot_service.process_message(message.message, chatbot_type="simple")
+        else:
+            # Usa chatbot simples
+            chatbot_service = ChatbotService()
+            response_text = chatbot_service.process_message(message.message, chatbot_type=chatbot_type)
         
         # Gera sugestões
         suggestions = _generate_suggestions(response_text, message.message)
@@ -60,6 +78,7 @@ async def chat_with_bot(request: Request, message: ChatMessage):
             suggestions=suggestions
         )
     except Exception as e:
+        logger.error(f"Erro ao processar mensagem: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao processar mensagem: {str(e)}")
 
 
@@ -79,9 +98,18 @@ async def get_session(session_id: str):
 
 @router.delete("/session/{session_id}")
 async def delete_session(session_id: str):
-    """Remove uma sessão de chat"""
+    """Remove uma sessão de chat e limpa histórico"""
     if session_id in chat_sessions:
         del chat_sessions[session_id]
+    
+    # Limpa histórico do RAG service
+    try:
+        from app.chatbot.rag_service import RAGService
+        rag_service = RAGService()
+        rag_service.clear_conversation_history(session_id)
+    except:
+        pass
+    
     return {"message": "Sessão removida"}
 
 
@@ -89,7 +117,7 @@ async def delete_session(session_id: str):
 async def search_leagues(
     q: Optional[str] = None, 
     limit: int = 10,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Endpoint auxiliar para busca de ligas.

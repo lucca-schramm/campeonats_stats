@@ -118,7 +118,7 @@ const sendMessage = async (text) => {
     const response = await axios.post('/api/v1/chatbot/chat', {
       message: messageText,
       session_id: sessionId.value,
-      chatbot_type: 'simple'
+      chatbot_type: 'rag'  // Usa RAG com DeepSeek para respostas mais inteligentes
     })
 
     sessionId.value = response.data.session_id
@@ -133,12 +133,13 @@ const sendMessage = async (text) => {
       suggestions.value = response.data.suggestions
     }
   } catch (error) {
+    console.error('Erro ao enviar mensagem:', error)
+    const errorMessage = error.response?.data?.detail || error.message || 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.'
     messages.value.push({
       role: 'assistant',
-      content: 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.',
+      content: `❌ Erro: ${errorMessage}`,
       timestamp: new Date()
     })
-    console.error('Erro ao enviar mensagem:', error)
   } finally {
     loading.value = false
     await nextTick()

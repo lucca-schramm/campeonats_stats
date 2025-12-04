@@ -1,6 +1,7 @@
 """Endpoints de Webhooks"""
 from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 from app.core.database import get_db
 from app.schemas.webhook import (
@@ -16,7 +17,7 @@ router = APIRouter()
 @router.post("/", response_model=WebhookSubscriptionResponse)
 async def create_webhook(
     subscription: WebhookSubscriptionCreate,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Registra um novo webhook"""
     webhook_manager = WebhookManager()
@@ -43,9 +44,15 @@ async def create_webhook(
     )
     
     # Busca subscription criada
-    webhook_sub = db.query(WebhookSubscription).filter(
-        WebhookSubscription.id == subscription_id
-    ).first()
+    result = await db.execute(
+        select(WebhookSubscription).filter(
+            WebhookSubscription.id == subscription_id
+        )
+    )
+    webhook_sub = result.scalar_one_or_none()
+    
+    if not webhook_sub:
+        raise HTTPException(status_code=404, detail="Webhook não encontrado após criação")
     
     return WebhookSubscriptionResponse.model_validate(webhook_sub)
 
@@ -54,10 +61,10 @@ async def create_webhook(
 async def list_webhooks(
     league_id: Optional[int] = None,
     active: Optional[bool] = None,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Lista todos os webhooks"""
-    query = db.query(WebhookSubscription)
+    query = select(WebhookSubscription)
     
     if league_id:
         query = query.filter(WebhookSubscription.league_id == league_id)
@@ -65,19 +72,23 @@ async def list_webhooks(
     if active is not None:
         query = query.filter(WebhookSubscription.active == active)
     
-    webhooks = query.all()
+    result = await db.execute(query)
+    webhooks = result.scalars().all()
     return [WebhookSubscriptionResponse.model_validate(w) for w in webhooks]
 
 
 @router.get("/{webhook_id}", response_model=WebhookSubscriptionResponse)
 async def get_webhook(
     webhook_id: int,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Obtém um webhook por ID"""
-    webhook = db.query(WebhookSubscription).filter(
-        WebhookSubscription.id == webhook_id
-    ).first()
+    result = await db.execute(
+        select(WebhookSubscription).filter(
+            WebhookSubscription.id == webhook_id
+        )
+    )
+    webhook = result.scalar_one_or_none()
     
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook não encontrado")
@@ -88,18 +99,21 @@ async def get_webhook(
 @router.delete("/{webhook_id}")
 async def delete_webhook(
     webhook_id: int,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Remove um webhook"""
-    webhook = db.query(WebhookSubscription).filter(
-        WebhookSubscription.id == webhook_id
-    ).first()
+    result = await db.execute(
+        select(WebhookSubscription).filter(
+            WebhookSubscription.id == webhook_id
+        )
+    )
+    webhook = result.scalar_one_or_none()
     
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook não encontrado")
     
     webhook.active = False
-    db.commit()
+    await db.commit()
     
     return {"message": "Webhook desativado"}
 
