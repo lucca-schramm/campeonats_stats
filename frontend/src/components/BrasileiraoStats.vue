@@ -123,11 +123,11 @@ const fetchStats = async () => {
   error.value = null
   
   try {
-    console.log(`Buscando stats para liga ${props.leagueId}, filtro: ${props.filter}`)
-    const response = await axios.get(`/api/v1/leagues/${props.leagueId}/standings`)
-    console.log('Response recebido:', response.data)
+    const filterParam = props.filter === 'casa' ? 'casa' : props.filter === 'fora' ? 'fora' : 'geral'
+    const response = await axios.get(`/api/v1/leagues/${props.leagueId}/standings`, {
+      params: { filter_type: filterParam }
+    })
     const standings = response.data.standings || []
-    console.log(`Dados processados: ${standings.length} times`)
     
     stats.value = standings.map((team, idx) => ({
       team_id: team.team_id,
@@ -146,9 +146,6 @@ const fetchStats = async () => {
     }))
   } catch (err) {
     error.value = `Erro ao carregar estatísticas: ${err.message || 'Erro desconhecido'}`
-    console.error('Erro ao buscar stats:', err)
-    console.error('Response:', err.response?.data)
-    console.error('Status:', err.response?.status)
   } finally {
     loading.value = false
   }

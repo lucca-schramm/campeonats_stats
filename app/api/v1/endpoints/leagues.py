@@ -103,14 +103,18 @@ async def get_league_standings(
     request: Request,
     league_id: int,
     season_id: Optional[int] = None,
+    filter_type: Optional[str] = Query("geral", description="Tipo de filtro: geral, casa, fora"),
     db: AsyncSession = Depends(get_db)
 ):
     """Obtém tabela de classificação de uma liga"""
-    cache_key = f"league:{league_id}:standings:{season_id}"
+    if filter_type not in ["geral", "casa", "fora"]:
+        filter_type = "geral"
+    
+    cache_key = f"league:{league_id}:standings:{season_id}:{filter_type}"
     
     async def compute():
         service = LeagueService(db)
-        standings = await service.get_standings(league_id, season_id)
+        standings = await service.get_standings(league_id, season_id, filter_type)
         return {"league_id": league_id, "standings": standings}
     
     return await _get_cached_or_compute(cache_key, compute)

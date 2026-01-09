@@ -50,7 +50,6 @@ class FootyStatsAPIClient:
         params['key'] = self.api_key
         url = f"{self.api_base_url}/{endpoint}"
         
-        # Rate limiting simples
         elapsed = time.time() - self.last_request_time
         if elapsed < self.min_interval:
             time.sleep(self.min_interval - elapsed)
@@ -59,7 +58,6 @@ class FootyStatsAPIClient:
         for attempt in range(max_retries):
             try:
                 logger.info(f"Requisição {attempt + 1}/{max_retries}: {endpoint}")
-                # Log params sem mostrar a key completa
                 safe_params = {k: (v[:10] + '...' if k == 'key' and len(str(v)) > 10 else v) for k, v in params.items()}
                 logger.info(f"Params: {safe_params}")
                 response = self.session.get(url, params=params, timeout=30)
@@ -95,14 +93,12 @@ class FootyStatsAPIClient:
     
     def get_available_leagues(self) -> List[Dict]:
         """Obtém todas as ligas disponíveis"""
-        # Tenta primeiro com chosen_leagues_only
         params = {"chosen_leagues_only": "true"}
         logger.info(f"Tentando obter ligas escolhidas...")
         data = self.make_request("league-list", params)
         
         if not data:
             logger.warning("Nenhuma liga escolhida encontrada. Tentando todas as ligas...")
-            # Se não encontrar ligas escolhidas, tenta todas
             params = {}
             data = self.make_request("league-list", params)
         
@@ -112,21 +108,16 @@ class FootyStatsAPIClient:
         
         logger.info(f"Resposta recebida: tipo={type(data)}")
         
-        # Tenta diferentes formatos de resposta
         leagues = []
         if isinstance(data, dict):
-            # Formato: {"data": [...]}
             if "data" in data:
                 leagues = data["data"]
-            # Formato: {"leagues": [...]}
             elif "leagues" in data:
                 leagues = data["leagues"]
-            # Formato: {"results": [...]}
             elif "results" in data:
                 leagues = data["results"]
             else:
                 logger.warning(f"Dict sem campo conhecido. Keys: {list(data.keys())}")
-                # Tenta pegar primeiro valor que seja lista
                 for value in data.values():
                     if isinstance(value, list):
                         leagues = value
@@ -173,7 +164,6 @@ class FootyStatsAPIClient:
                 
             all_players.extend(players)
             
-            # Verifica se há mais páginas
             pager = data.get("pager", {})
             current_page = pager.get("current_page", page)
             max_page = pager.get("max_page", 1)
@@ -185,9 +175,7 @@ class FootyStatsAPIClient:
                 break
                 
             page += 1
-            
-            # Rate limiting: delay entre requisições de paginação
-            time.sleep(0.2)  # 200ms entre páginas
+            time.sleep(0.2)
         
         total_results = data.get("pager", {}).get("total_results", len(all_players)) if data else len(all_players)
         logger.info(f"✅ Total de jogadores coletados: {len(all_players)}/{total_results}")
@@ -218,7 +206,6 @@ class FootballDataCollector:
         if not seasons:
             return None
         
-        # Ordena por ano (mais recente primeiro)
         sorted_seasons = sorted(seasons, key=lambda x: x.get("year", 0), reverse=True)
         return sorted_seasons[0]
     
@@ -230,7 +217,6 @@ class FootballDataCollector:
             if existing_league:
                 return existing_league.id
             
-            # Gera ID baseado em hash
             league_id = abs(hash(f"{league_name}_{country}_{season_id}")) % 1000000
             return league_id if league_id > 0 else 1
         except Exception as e:
@@ -243,7 +229,6 @@ class FootballDataCollector:
         """Carrega as ligas escolhidas da API"""
         logger.info("Obtendo ligas escolhidas da API FootyStats...")
         
-        # Obtém apenas ligas escolhidas
         api_leagues = self.api.get_available_leagues()
         
         logger.info(f"Resposta da API: {type(api_leagues)}, tamanho: {len(api_leagues) if api_leagues else 0}")
@@ -258,13 +243,11 @@ class FootballDataCollector:
         
         logger.info(f"Encontradas {len(api_leagues)} ligas na API")
         
-        # Mapeia as ligas da API para o formato interno
         for league_data in api_leagues:
             try:
                 league_name = league_data.get("name", "")
                 country = league_data.get("country", "")
                 
-                # Pega a temporada mais recente
                 seasons = league_data.get("season", [])
                 latest_season = self.get_latest_season(seasons)
                 
@@ -276,7 +259,6 @@ class FootballDataCollector:
                 season_year = latest_season.get("year")
                 
                 if season_id and season_year:
-                    # Busca o league_id correto no banco de dados
                     league_id = self.get_league_id_from_database(season_id, league_name, country)
                     
                     league_config = LeagueConfig(
@@ -343,7 +325,6 @@ class FootballDataCollector:
         """Salva um time no banco de dados PostgreSQL"""
         db = self.get_db_session()
         try:
-            # Validação de dados do time
             team_id = team_data.get("id")
             team_name = team_data.get("name", "").strip()
             
@@ -355,7 +336,6 @@ class FootballDataCollector:
                 logger.warning(f"Nome do time vazio para ID {team_id}")
                 return None
             
-            # Verifica se já existe um time com este ID para esta liga e temporada
             team = db.query(Team).filter(
                 Team.id == team_id,
                 Team.league_id == league_id,
@@ -363,7 +343,6 @@ class FootballDataCollector:
             ).first()
             
             if team:
-                # Atualiza registro existente
                 team.name = team_name
                 team.clean_name = team_data.get("cleanName")
                 team.english_name = team_data.get("english_name")
@@ -375,7 +354,6 @@ class FootballDataCollector:
                 team.performance_rank = team_data.get("performance_rank")
                 logger.debug(f"Time atualizado: ID {team_id} - {team_name}")
             else:
-                # Insere novo registro
                 team = Team(
                     id=team_id,
                     name=team_name,
@@ -424,14 +402,12 @@ class FootballDataCollector:
         """Salva uma partida no banco de dados PostgreSQL adaptada para FootyStats"""
         db = self.get_db_session()
         try:
-            # Extrai dados da partida baseado na estrutura real da API FootyStats
             fixture_id = fixture_data.get("id")
             home_team_id = fixture_data.get("homeID")
             away_team_id = fixture_data.get("awayID")
             home_team_name = fixture_data.get("home_name", "Unknown")
             away_team_name = fixture_data.get("away_name", "Unknown")
             
-            # Validação básica de dados obrigatórios
             if not fixture_id:
                 logger.warning(f"ID da partida não encontrado: {fixture_data}")
                 return None
@@ -440,11 +416,9 @@ class FootballDataCollector:
                 logger.warning(f"IDs dos times não encontrados para partida {fixture_id}")
                 return None
             
-            # Busca partida existente
             fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
             
             if fixture:
-                # Atualiza registro existente
                 fixture.league_id = league_id
                 fixture.season_id = season_id
                 fixture.home_team_id = home_team_id
@@ -474,9 +448,12 @@ class FootballDataCollector:
                 fixture.over35 = fixture_data.get("over35", False)
                 fixture.btts = fixture_data.get("btts", False)
                 fixture.stadium_name = fixture_data.get("stadium_name")
+                fixture.round = fixture_data.get("round") or fixture_data.get("Round")
+                fixture.phase = fixture_data.get("phase") or fixture_data.get("Phase")
+                fixture.stage = fixture_data.get("stage") or fixture_data.get("Stage")
+                fixture.group_name = fixture_data.get("group") or fixture_data.get("Group") or fixture_data.get("group_name")
                 logger.debug(f"Partida atualizada: ID {fixture_id} - {home_team_name} vs {away_team_name}")
             else:
-                # Insere novo registro
                 fixture = Fixture(
                     id=fixture_id,
                     league_id=league_id,
@@ -508,6 +485,10 @@ class FootballDataCollector:
                     over35=fixture_data.get("over35", False),
                     btts=fixture_data.get("btts", False),
                     stadium_name=fixture_data.get("stadium_name"),
+                    round=fixture_data.get("round") or fixture_data.get("Round"),
+                    phase=fixture_data.get("phase") or fixture_data.get("Phase"),
+                    stage=fixture_data.get("stage") or fixture_data.get("Stage"),
+                    group_name=fixture_data.get("group") or fixture_data.get("Group") or fixture_data.get("group_name"),
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow()
                 )
@@ -539,7 +520,6 @@ class FootballDataCollector:
         """Salva estatísticas de um time no banco de dados PostgreSQL"""
         db = self.get_db_session()
         try:
-            # Adapta os dados da FootyStats para o formato interno
             team_id = team_stats.get("team_id") or team_stats.get("id")
             if not team_id:
                 logger.warning(f"ID do time não encontrado: {team_stats}")
@@ -552,7 +532,6 @@ class FootballDataCollector:
             ).first()
             
             if stats:
-                # Atualiza registro existente
                 stats.season_year = season_year
                 stats.matches_played = team_stats.get("matches_played", 0)
                 stats.wins = team_stats.get("wins", 0)
@@ -564,7 +543,6 @@ class FootballDataCollector:
                 stats.rank = team_stats.get("rank", 0)
                 stats.position = team_stats.get("position", 0)
             else:
-                # Cria novo registro
                 stats = TeamStatistics(
                     team_id=team_id,
                     league_id=league_id,
@@ -599,17 +577,14 @@ class FootballDataCollector:
         """Salva dados de um jogador no banco de dados PostgreSQL"""
         db = self.get_db_session()
         try:
-            # Obtém nome do time
             team = db.query(Team).filter(Team.id == team_id).first()
             team_name = team.name if team else "Unknown"
             
-            # Validação de dados do jogador
             player_name = player_data.get("name", "").strip()
             if not player_name or player_name == "N/A" or player_name == "Unknown":
                 logger.debug(f"⏭️  Jogador sem nome válido pulado para team_id {team_id}: '{player_name}'")
                 return None
             
-            # Verifica se já existe um jogador com este nome para este time e temporada
             player = db.query(Player).filter(
                 Player.name == player_name,
                 Player.team_id == team_id,
@@ -617,7 +592,6 @@ class FootballDataCollector:
             ).first()
             
             if player:
-                # Atualiza registro existente
                 player.team_name = team_name
                 player.position = player_data.get("position", "")
                 player.goals = player_data.get("goals", 0) or 0
@@ -636,7 +610,6 @@ class FootballDataCollector:
                 db.commit()
                 return player.id
             else:
-                # Insere novo registro
                 player = Player(
                     name=player_name,
                     team_id=team_id,
@@ -700,7 +673,6 @@ class FootballDataCollector:
             
             logger.info(f"📊 Encontrados {len(players_list)} jogadores na API")
             
-            # Mapeia jogadores por time
             players_by_team = {}
             for player in players_list:
                 team_id = player.get("club_team_id")
@@ -711,7 +683,6 @@ class FootballDataCollector:
             
             logger.info(f"📊 Jogadores distribuídos em {len(players_by_team)} times")
             
-            # Salva jogadores no banco
             total_saved = 0
             batch_size = 200
             
@@ -720,18 +691,15 @@ class FootballDataCollector:
                 logger.info(f"💾 Processando {len(team_players)} jogadores do time {team_id}")
                 
                 for player in team_players:
-                    # Tenta diferentes campos para o nome do jogador
                     player_name = (player.get("full_name") or 
                                  player.get("name") or 
                                  player.get("player_name") or 
                                  f"Jogador_{player.get('id', 'Unknown')}")
                     
-                    # Se ainda estiver vazio, pula este jogador
                     if not player_name or player_name.strip() == "":
                         logger.debug(f"⏭️  Jogador sem nome válido pulado: {player}")
                         continue
                     
-                    # Os dados já vêm com estatísticas incluídas!
                     player_data = {
                         "name": player_name.strip(),
                         "position": player.get("position", "N/A"),
@@ -750,13 +718,11 @@ class FootballDataCollector:
 
                     all_players_data.append((player_data, team_id, league_config.id, league_config.season_id))
             
-            # Processa jogadores em lotes
             for i in range(0, len(all_players_data), batch_size):
                 batch = all_players_data[i:i + batch_size]
                 logger.info(f"💾 Salvando lote de {len(batch)} jogadores...")
                 
                 for player_data, team_id, league_id, season_id in batch:
-                    # Salva no banco
                     saved_player_id = self.save_player(player_data, team_id, league_id, season_id)
                     if saved_player_id:
                         total_saved += 1
@@ -770,7 +736,6 @@ class FootballDataCollector:
         """Obtém artilharia do banco de dados PostgreSQL"""
         db = self.get_db_session()
         try:
-            # Query usando SQLAlchemy
             results = db.query(
                 Player.name,
                 Player.team_name,
@@ -796,7 +761,6 @@ class FootballDataCollector:
             for row in results:
                 name, team_name, position, goals, assists, matches, team_logo, player_url = row
                 
-                # Gera URL da foto do jogador com nacionalidade
                 player_photo = self._generate_player_photo_url(name, player_url)
                 
                 scorers.append({
@@ -820,29 +784,25 @@ class FootballDataCollector:
     def _generate_player_photo_url(self, player_name: str, player_url: str = None) -> str:
         """Gera URL da foto do jogador incluindo nacionalidade extraída da URL"""
         try:
-            # Se não há URL do jogador, usa formato padrão sem nacionalidade
             if not player_url:
                 return f"https://cdn.footystats.org/img/players/-{player_name.lower().replace(' ', '-')}.png"
             
             url_parts = player_url.split('/')
             if len(url_parts) >= 6 and url_parts[3] == 'players':
-                nationality = url_parts[4]  # Ex: 'brazil'
-                url_player_name = url_parts[5]  # Ex: 'kaio-jorge' ou 'kaio-jorge-pinto-ramos'
+                nationality = url_parts[4]
+                url_player_name = url_parts[5]
                 return f"https://cdn.footystats.org/img/players/{nationality}-{url_player_name}.png"
             else:
-                # Fallback para formato sem nacionalidade
                 return f"https://cdn.footystats.org/img/players/-{player_name.lower().replace(' ', '-')}.png"
                 
         except Exception as e:
             logger.warning(f"Erro ao gerar URL da foto para {player_name}: {e}")
-            # Fallback para formato sem nacionalidade
             return f"https://cdn.footystats.org/img/players/-{player_name.lower().replace(' ', '-')}.png"
 
     def collect_league_data(self, league_config: LeagueConfig):
         """Coleta todos os dados de uma liga"""
         logger.info(f"🏆 Iniciando coleta da liga: {league_config.name} {league_config.season_year} (Season ID: {league_config.season_id})")
         
-        # Salva a liga
         league_data = {
             "id": league_config.id,
             "name": league_config.name,
@@ -854,7 +814,6 @@ class FootballDataCollector:
         self.save_league(league_data)
         logger.info(f"✅ Liga {league_config.name} {league_config.season_year} salva no banco")
         
-        # Obtém times da liga
         teams = self.api.get_league_teams(league_config.season_id)
         logger.info(f"👥 Encontrados {len(teams)} times na liga")
         
@@ -865,24 +824,19 @@ class FootballDataCollector:
                 logger.debug(f"✅ Time processado: {team.get('name', 'N/A')}")
                 teams_processed.add(team["id"])
         
-        # Obtém todas as partidas PRIMEIRO
         fixtures = self.api.get_league_matches(league_config.season_id)
         logger.info(f"📋 Encontradas {len(fixtures)} partidas na API")
         
         fixtures_processed = 0
         
-        # Processa partidas
         for fixture in fixtures:
             saved_fixture_id = self.save_fixture(fixture, league_config.id, league_config.season_id)
             if saved_fixture_id:
                 fixtures_processed += 1
         
-        
-        # Coleta dados de jogadores
         logger.info("👥 Coletando dados de jogadores...")
         self.collect_players_data(league_config)
         
-        # Constrói tabela de classificação APÓS coletar as partidas
         logger.info("📊 Construindo tabela de classificação a partir dos dados coletados...")
         self.build_league_table_from_matches(league_config.id, league_config.season_id, league_config.season_year)
         
@@ -935,16 +889,13 @@ class FootballDataCollector:
         """Constrói tabela de classificação a partir dos dados de partidas coletados - PostgreSQL"""
         db = self.get_db_session()
         try:
-            # Obtém todos os times da liga usando season_id como identificador único
             teams = db.query(Team.id, Team.name).filter(Team.season_id == season_id).all()
             
             if not teams:
                 logger.warning(f"Nenhum time encontrado para liga {league_id}")
                 return
             
-            # Para cada time, calcula estatísticas
             for team_id, team_name in teams:
-                # Partidas como mandante (apenas completas)
                 home_query = db.query(
                     func.count(Fixture.id).label('matches'),
                     func.sum(case((Fixture.home_goal_count > Fixture.away_goal_count, 1), else_=0)).label('wins'),
@@ -961,7 +912,6 @@ class FootballDataCollector:
                 home_stats = (home_query.matches or 0, home_query.wins or 0, home_query.draws or 0,
                              home_query.losses or 0, home_query.goals_for or 0, home_query.goals_against or 0)
                 
-                # Partidas como visitante (apenas completas)
                 away_query = db.query(
                     func.count(Fixture.id).label('matches'),
                     func.sum(case((Fixture.away_goal_count > Fixture.home_goal_count, 1), else_=0)).label('wins'),
@@ -978,7 +928,6 @@ class FootballDataCollector:
                 away_stats = (away_query.matches or 0, away_query.wins or 0, away_query.draws or 0,
                              away_query.losses or 0, away_query.goals_for or 0, away_query.goals_against or 0)
                 
-                # Calcula totais
                 total_matches = home_stats[0] + away_stats[0]
                 total_wins = home_stats[1] + away_stats[1]
                 total_draws = home_stats[2] + away_stats[2]
@@ -987,7 +936,6 @@ class FootballDataCollector:
                 total_goals_against = home_stats[5] + away_stats[5]
                 total_points = (total_wins * 3) + (total_draws * 1)
                 
-                # Verifica se já existe estatística para este time/liga/temporada
                 stats = db.query(TeamStatistics).filter(
                     TeamStatistics.team_id == team_id,
                     TeamStatistics.league_id == league_id,
@@ -995,7 +943,6 @@ class FootballDataCollector:
                 ).first()
                 
                 if stats:
-                    # Atualiza registro existente
                     stats.season_year = season_year or 2025
                     stats.matches_played = total_matches
                     stats.wins = total_wins
@@ -1007,7 +954,6 @@ class FootballDataCollector:
                     stats.rank = 0
                     stats.position = 0
                 else:
-                    # Insere novo registro
                     stats = TeamStatistics(
                         team_id=team_id,
                         league_id=league_id,
@@ -1026,15 +972,12 @@ class FootballDataCollector:
                         updated_at=datetime.utcnow()
                     )
                     db.add(stats)
-                
 
-            # Carrega estatísticas atuais dos times nesta temporada
             stats_list = db.query(TeamStatistics).filter(
                 TeamStatistics.league_id == league_id,
                 TeamStatistics.season_id == season_id
             ).all()
 
-            # Mapa base por time
             team_rows = {}
             for stat in stats_list:
                 team_rows[stat.team_id] = {
@@ -1051,9 +994,7 @@ class FootballDataCollector:
             if team_rows:
                 team_ids = list(team_rows.keys())
 
-                # Cartões por time (soma home/away) - usando SQLAlchemy
                 for team_id in team_ids:
-                    # Red cards
                     red_cards_home = db.query(func.sum(Fixture.home_red_cards)).filter(
                         Fixture.league_id == league_id,
                         Fixture.season_id == season_id,
@@ -1086,21 +1027,17 @@ class FootballDataCollector:
                     team_rows[team_id]["red_cards"] = red_cards_home + red_cards_away
                     team_rows[team_id]["yellow_cards"] = yellow_cards_home + yellow_cards_away
 
-                # Agrupa times empatados antes de confronto direto: pontos, vitórias, gd, gf
                 from collections import defaultdict
                 groups = defaultdict(list)
                 for t in team_rows.values():
                     groups[(t["points"], t["wins"], t["gd"], t["gf"])].append(t["team_id"])
 
-                # Calcula pontos de confronto direto por grupo com mais de 1 time
                 for key, tied_team_ids in groups.items():
                     if len(tied_team_ids) <= 1:
                         continue
                     
-                    # Para cada time do grupo, calcula pontos contra os demais do mesmo grupo
                     for team_id in tied_team_ids:
                         h2h_points = 0
-                        # Partidas como mandante
                         home_fixtures = db.query(Fixture).filter(
                             Fixture.league_id == league_id,
                             Fixture.season_id == season_id,
@@ -1115,7 +1052,6 @@ class FootballDataCollector:
                             elif fixture.home_goal_count == fixture.away_goal_count:
                                 h2h_points += 1
                         
-                        # Partidas como visitante
                         away_fixtures = db.query(Fixture).filter(
                             Fixture.league_id == league_id,
                             Fixture.season_id == season_id,
@@ -1132,7 +1068,6 @@ class FootballDataCollector:
                         
                         team_rows[team_id]["h2h_points"] = h2h_points
 
-                # Ordena aplicando todos os critérios
                 sorted_teams = sorted(
                     team_rows.values(),
                     key=lambda t: (
@@ -1147,7 +1082,6 @@ class FootballDataCollector:
                     )
                 )
 
-                # Atualiza rank e position conforme ordem calculada
                 for idx, t in enumerate(sorted_teams, start=1):
                     stat = db.query(TeamStatistics).filter(
                         TeamStatistics.league_id == league_id,

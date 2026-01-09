@@ -49,6 +49,11 @@ class Fixture(BaseModel):
     
     stadium_name = Column(String(255), nullable=True)
     
+    round = Column(String(100), nullable=True, index=True)
+    phase = Column(String(100), nullable=True, index=True)
+    stage = Column(String(100), nullable=True, index=True)
+    group_name = Column(String(100), nullable=True, index=True)
+    
     # Relationships
     league = relationship("League", backref="fixtures")
     home_team = relationship("Team", foreign_keys=[home_team_id], backref="home_fixtures")

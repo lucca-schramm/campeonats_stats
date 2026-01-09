@@ -117,7 +117,7 @@
       </div>
     </div>
 
-    <div class="self-stretch py-14 bg-contentMain flex flex-col gap-8">
+    <div class="self-stretch py-14 bg-contentMain flex flex-col gap-8 text-white">
       <div class="self-stretch px-4 sm:px-6 md:px-20 flex flex-col gap-3">
         <div class="text-2xl sm:text-3xl md:text-4xl font-extrabold font-sans text-left">
           Jogue com responsabilidade!

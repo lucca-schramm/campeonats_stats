@@ -31,7 +31,7 @@ class LeagueService:
         """Busca ligas por nome"""
         return await self.repository.search_by_name(query, limit)
     
-    async def get_standings(self, league_id: int, season_id: Optional[int] = None) -> List[dict]:
+    async def get_standings(self, league_id: int, season_id: Optional[int] = None, filter_type: str = "geral") -> List[dict]:
         """Obtém tabela de classificação com informações completas dos times e estatísticas avançadas"""
         from app.models.team import Team
         from app.models.fixture import Fixture
@@ -55,75 +55,119 @@ class LeagueService:
             team_id = stats.team_id
             stats_season_id = stats.season_id
             
-            # Calcula estatísticas avançadas a partir dos fixtures
-            # Over 2.5 goals (jogos com 3+ gols)
-            over25_query = select(func.count(Fixture.id)).filter(
-                and_(
-                    Fixture.league_id == league_id,
-                    Fixture.season_id == stats_season_id,
-                    Fixture.status == 'complete',
-                    or_(
-                        and_(Fixture.home_team_id == team_id, Fixture.total_goal_count > 2),
-                        and_(Fixture.away_team_id == team_id, Fixture.total_goal_count > 2)
+            if filter_type == "geral":
+                matches_played = stats.matches_played or 0
+                wins = stats.wins or 0
+                draws = stats.draws or 0
+                losses = stats.losses or 0
+                goals_for = stats.goals_for or 0
+                goals_against = stats.goals_against or 0
+                points = stats.points or 0
+                
+                fixture_filter = or_(
+                    Fixture.home_team_id == team_id,
+                    Fixture.away_team_id == team_id
+                )
+            elif filter_type == "casa":
+                home_query = select(
+                    func.count(Fixture.id).label('matches'),
+                    func.sum(case((Fixture.home_goal_count > Fixture.away_goal_count, 1), else_=0)).label('wins'),
+                    func.sum(case((Fixture.home_goal_count == Fixture.away_goal_count, 1), else_=0)).label('draws'),
+                    func.sum(case((Fixture.home_goal_count < Fixture.away_goal_count, 1), else_=0)).label('losses'),
+                    func.sum(Fixture.home_goal_count).label('goals_for'),
+                    func.sum(Fixture.away_goal_count).label('goals_against')
+                ).filter(
+                    and_(
+                        Fixture.league_id == league_id,
+                        Fixture.season_id == stats_season_id,
+                        Fixture.home_team_id == team_id,
+                        Fixture.status == 'complete'
                     )
                 )
+                home_result = await self.db.execute(home_query)
+                home_row = home_result.first()
+                
+                matches_played = home_row.matches or 0 if home_row else 0
+                wins = home_row.wins or 0 if home_row else 0
+                draws = home_row.draws or 0 if home_row else 0
+                losses = home_row.losses or 0 if home_row else 0
+                goals_for = home_row.goals_for or 0 if home_row else 0
+                goals_against = home_row.goals_against or 0 if home_row else 0
+                points = (wins * 3) + (draws * 1)
+                
+                fixture_filter = Fixture.home_team_id == team_id
+            else:
+                away_query = select(
+                    func.count(Fixture.id).label('matches'),
+                    func.sum(case((Fixture.away_goal_count > Fixture.home_goal_count, 1), else_=0)).label('wins'),
+                    func.sum(case((Fixture.away_goal_count == Fixture.home_goal_count, 1), else_=0)).label('draws'),
+                    func.sum(case((Fixture.away_goal_count < Fixture.home_goal_count, 1), else_=0)).label('losses'),
+                    func.sum(Fixture.away_goal_count).label('goals_for'),
+                    func.sum(Fixture.home_goal_count).label('goals_against')
+                ).filter(
+                    and_(
+                        Fixture.league_id == league_id,
+                        Fixture.season_id == stats_season_id,
+                        Fixture.away_team_id == team_id,
+                        Fixture.status == 'complete'
+                    )
+                )
+                away_result = await self.db.execute(away_query)
+                away_row = away_result.first()
+                
+                matches_played = away_row.matches or 0 if away_row else 0
+                wins = away_row.wins or 0 if away_row else 0
+                draws = away_row.draws or 0 if away_row else 0
+                losses = away_row.losses or 0 if away_row else 0
+                goals_for = away_row.goals_for or 0 if away_row else 0
+                goals_against = away_row.goals_against or 0 if away_row else 0
+                points = (wins * 3) + (draws * 1)
+                
+                fixture_filter = Fixture.away_team_id == team_id
+            
+            base_filter = and_(
+                Fixture.league_id == league_id,
+                Fixture.season_id == stats_season_id,
+                Fixture.status == 'complete',
+                fixture_filter
+            )
+            
+            over25_query = select(func.count(Fixture.id)).filter(
+                and_(base_filter, Fixture.total_goal_count > 2)
             )
             over25_result = await self.db.execute(over25_query)
             over25_goals = over25_result.scalar() or 0
             
-            # BTTS (Both Teams To Score)
             btts_query = select(func.count(Fixture.id)).filter(
-                and_(
-                    Fixture.league_id == league_id,
-                    Fixture.season_id == stats_season_id,
-                    Fixture.status == 'complete',
-                    Fixture.btts == True,
-                    or_(
-                        Fixture.home_team_id == team_id,
-                        Fixture.away_team_id == team_id
-                    )
-                )
+                and_(base_filter, Fixture.btts == True)
             )
             btts_result = await self.db.execute(btts_query)
             btts = btts_result.scalar() or 0
             
-            # Clean Sheets (sem sofrer gol)
-            clean_sheets_query = select(func.count(Fixture.id)).filter(
-                and_(
-                    Fixture.league_id == league_id,
-                    Fixture.season_id == stats_season_id,
-                    Fixture.status == 'complete',
+            if filter_type == "casa":
+                clean_sheets_filter = and_(base_filter, Fixture.away_goal_count == 0)
+            elif filter_type == "fora":
+                clean_sheets_filter = and_(base_filter, Fixture.home_goal_count == 0)
+            else:
+                clean_sheets_filter = and_(
+                    base_filter,
                     or_(
                         and_(Fixture.home_team_id == team_id, Fixture.away_goal_count == 0),
                         and_(Fixture.away_team_id == team_id, Fixture.home_goal_count == 0)
                     )
                 )
-            )
+            
+            clean_sheets_query = select(func.count(Fixture.id)).filter(clean_sheets_filter)
             clean_sheets_result = await self.db.execute(clean_sheets_query)
             clean_sheets = clean_sheets_result.scalar() or 0
             
-            # Over 0.5 goals 1ºT (gols no primeiro tempo)
-            # Nota: Como não temos dados de gols por tempo, vamos usar uma aproximação
-            # Assumindo que se houve gol na partida, pode ter sido no 1ºT
             over05_ht_query = select(func.count(Fixture.id)).filter(
-                and_(
-                    Fixture.league_id == league_id,
-                    Fixture.season_id == stats_season_id,
-                    Fixture.status == 'complete',
-                    Fixture.over05 == True,
-                    or_(
-                        Fixture.home_team_id == team_id,
-                        Fixture.away_team_id == team_id
-                    )
-                )
+                and_(base_filter, Fixture.over05 == True)
             )
             over05_ht_result = await self.db.execute(over05_ht_query)
             over05_ht = over05_ht_result.scalar() or 0
+            over05_ft = over05_ht
             
-            # Over 0.5 goals 2ºT (mesma lógica)
-            over05_ft = over05_ht  # Aproximação: se teve gol, pode ter sido em qualquer tempo
-            
-            # Média de escanteios por jogo
             corners_query = select(
                 func.sum(
                     case(
@@ -131,33 +175,12 @@ class LeagueService:
                         else_=Fixture.away_corners
                     )
                 )
-            ).filter(
-                and_(
-                    Fixture.league_id == league_id,
-                    Fixture.season_id == stats_season_id,
-                    Fixture.status == 'complete',
-                    or_(
-                        Fixture.home_team_id == team_id,
-                        Fixture.away_team_id == team_id
-                    )
-                )
-            )
+            ).filter(base_filter)
             corners_result = await self.db.execute(corners_query)
             total_corners = corners_result.scalar() or 0
-            avg_corners = round(total_corners / (stats.matches_played or 1), 1) if stats.matches_played > 0 else 0
+            avg_corners = round(total_corners / matches_played, 1) if matches_played > 0 else 0
             
-            # Forma (últimos 5 jogos: V=Vitória, E=Empate, D=Derrota)
-            form_query = select(Fixture).filter(
-                and_(
-                    Fixture.league_id == league_id,
-                    Fixture.season_id == stats_season_id,
-                    Fixture.status == 'complete',
-                    or_(
-                        Fixture.home_team_id == team_id,
-                        Fixture.away_team_id == team_id
-                    )
-                )
-            ).order_by(Fixture.date_unix.desc()).limit(5)
+            form_query = select(Fixture).filter(base_filter).order_by(Fixture.date_unix.desc()).limit(5)
             form_result = await self.db.execute(form_query)
             form_fixtures = form_result.scalars().all()
             
@@ -178,7 +201,6 @@ class LeagueService:
                     else:
                         form.append('D')
             
-            # Completa com '-' se não houver 5 jogos
             while len(form) < 5:
                 form.append('-')
             
@@ -187,15 +209,14 @@ class LeagueService:
                 "team_id": stats.team_id,
                 "name": team.name if team else f"Time {stats.team_id}",
                 "logo": team.image if team and team.image else "",
-                "points": stats.points or 0,
-                "matches_played": stats.matches_played or 0,
-                "wins": stats.wins or 0,
-                "draws": stats.draws or 0,
-                "losses": stats.losses or 0,
-                "goals_for": stats.goals_for or 0,
-                "goals_against": stats.goals_against or 0,
-                "goals_diff": (stats.goals_for or 0) - (stats.goals_against or 0),
-                # Estatísticas avançadas
+                "points": points,
+                "matches_played": matches_played,
+                "wins": wins,
+                "draws": draws,
+                "losses": losses,
+                "goals_for": goals_for,
+                "goals_against": goals_against,
+                "goals_diff": goals_for - goals_against,
                 "over25Goals": over25_goals,
                 "btts": btts,
                 "cleanSheets": clean_sheets,
